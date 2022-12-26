@@ -1,105 +1,77 @@
-import time
-import datetime
 import random
+import time
 
-class Member:
-    #Score, latency, and timeWaiting derive defaults from population.
-    def __init__(self, population, score=None, latency=None, timeWaiting=None):
-        self.id = None
-        self.population = population
-        self.score = score or population.defaultScore #Equivalent to Elo or something like that
-        self.latency = latency or population.defaultLatency
-        self.timeWaiting = timeWaiting or population.defaultTimeWaiting #I don't know why you wouldn't want this to start at 0.
+def btrial(x1, x2):
+    chance = random.random()
+    if 1/abs(x1-x2) <= chance:
+        print(f"Match {x1} and {x2}")
+    else:
+        print(f"No match {x1} and {x2}")
 
-        self.inMatch = False
+E = 1
+class Node():
+    def __init__(self, loc, time):
+        self.score = loc
+        self.t = time
 
-    def GetMatch(self):
-        return self.match if self.inMatch else False
+    def __sub__(self, other):
+        return abs(self.score - other.score) + abs(self.t - other.t)
 
-class Population:
-    def __init__(self, timescale=1.0, spawnChance=None, despawnChance=None,
-                     defaultScore=1000, defaultLatency=60, defaultTimeWaiting=0):
-        self.members = []
-        self.matches = set()
-        self.stream = False
-        self.unitsElapsed = 0
-        self.timescale = timescale #TODO: Clip to 0-1.0
-        #time in fractional seconds, that is, if ts=0.500 then one second will pass in 500 milliseconds.
-        self.spawnChance = spawnChance or self.timescale / 5 #TODO: Clip to 0-1.0
-        self.despawnChance = despawnChance or self.timescale / 50 #TODO: Clip
-        #if population.timescale is 0.900 and spawnChance is 0.5, then every
-        #900 milliseconds, there will be a 50% chance of spawning.
-        self.defaultScore = defaultScore
-        self.defaultLatency = defaultLatency
-        self.defaultTimeWaiting = defaultTimeWaiting
+    def __str__(self):
+        return f"Node:l({self.score}), t({self.t})"
 
-        self.PostLoopFunction = lambda x: None
-        self.PreLoopFunction = lambda x: None
+    def __repr__(self):
+        return self.__str__()
 
-    def AddMember(self, score=None, latency=None, timeWaiting=None):
-        m = Member(self, score=score, latency=latency, timeWaiting=timeWaiting)
-        self.members.append(m)
-        return m
+    def should_match(self, other, ct):
+        if self.t >= other.t and ct == self.t + self.__sub__(other)/E:
+            return True
+        else:
+            return False
 
-    def GetMembers(self, maxi=None, predicate=None):
-        #get members that meet predicate, up to maxi amount.
-        if (not maxi) and (not predicate):
-            return self.members
+class Space(list):
+    def __init__(self):
+        super().__init__(self)
+        self.matchings = []
+    
+    def should_match(self, p, q, t):
+        #print(t, "<>", p.t + ((p-q)/0.01), p.t + ((p-q)/0.1), p.t + ((p-q)/1))
+        if p.t >= q.t and t == p.t + ((p-q)/E):
+            self.remove(p)
+            self.remove(q)
+            match = (p, q, t)
+            self.matchings.append(match)
+            return match
+        return False
 
-    def GetUnmatchedMembers(self):
-        l = []
-        for m in self.members:
-            if not m.GetMatch():
-                l.append(m)
-        return l
+def create_requests(seed, length, spawn_chance, min_loc, max_loc):
+    random.seed(seed)
+    l = []
+    for i in range(0, length):
+        if random.random() <= spawn_chance:
+            l.append((random.randint(min_loc, max_loc), i))
+        else:
+            l.append(None)
+    l = l + [None]*99999
+    return l
 
-    def EnableStream(self):
-        self.stream = True
-
-    def DisableStream(self):
-        self.stream = False
-
-    def Update(self):
-        self.unitsElapsed = self.unitsElapsed + 1
-        self.PreLoopFunction(self)
-        if self.stream and random.random() < self.spawnChance:
-            m = self.AddMember(score=random.randint(1000, 2000), latency=random.randint(10, 120), timeWaiting=0)
-            print("Spawning 1 Member, score {} lat {}".format(m.score, m.latency))
-        for m in self.GetUnmatchedMembers():
-            if random.random() < self.despawnChance:
-                self.members.remove(m)
-                print("Despawning 1 Member, total pop:", len(self.members))
-                #m.Destroy <- Any need for a function like this?
-        self.PostLoopFunction(self)
-
-    def Loop(self):
-        currentTime = time.time()
-        t = 0
-        dt = 1/60
-        while True:
-            newTime = time.time()
-            frameTime = newTime - currentTime
-            currentTime = newTime
-
-            while frameTime > 0.0:
-                deltaTime = min(frameTime, dt)
-                frameTime -= deltaTime
-                t += deltaTime
-            if t > self.timescale:
-                t = 0
-                self.Update()
-
-#End user example:
-#Create a population. Timescale: 1.0 causes an Update every 1 second, 0.500 causes an update every 500 milliseconds.
-##I don't know a better way of scaling time like this. My intention is that if timescale is x milliseconds,
-##then one real second occurs in x milliseconds, but I don't know if that is actually a good description for what I coded.
-#spawnChance/despawnChance: decimal coded percentage chance of a spawn or despawn. Despawn chance is evaluated for each member
-##not in a match.
-p = Population(timescale=0.9, spawnChance=0.25, despawnChance=0.05)
-#The stream turns on "the sink" of constantly incoming players. You may want to code your own function but I've included this
-##to start. This is where spawnChance comes in.
-p.EnableStream()
-#You can use p.PreLoopFunction or p.PostLoopFunction to do stuff. The population is passed as the arg.
-p.PostLoopFunction = lambda pop: print("P: {}, T: {}".format(len(pop.members), pop.unitsElapsed))
-#One day I will learn async. But today is not that day.
-p.Loop()
+reqs = create_requests(123, 1000, 0.02, 100, 2400)
+space = Space()
+t = 1
+while len(reqs) > 0:
+    r = reqs.pop(0)
+    if r:
+        space.append(Node(r[0], r[1]))
+        print("Inserting", len(space))
+    if len(space) == 0:
+        print("no nodes")
+    for node in space:
+        for other in space:
+            if node == other:
+                continue
+            m = space.should_match(node, other, t)
+            if m:
+                print("Matching", m[0], m[1], m[2])
+    t = t + 1
+print(f"Finished at timestep {t}")
+print(space.matchings)
