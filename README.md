@@ -44,8 +44,8 @@ for space in spaces:
 draw_stats(spaces)
 draw_data(spaces)
 ```
-![A box-and-whiskers plot](/imng/boxplot.png)  
-![A scatter plot of the matchings](/img/scatterplot.png)  
+![A box-and-whiskers plot](/img/boxplot.PNG)  
+![A scatter plot of the matchings](/img/scatterplot.PNG)  
 ```
 Greedy Algorithm Avg Cost: 293.2134040715357
 Bienkowski Space Avg Cost: 776.5689765241297
